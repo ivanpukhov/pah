@@ -1,4 +1,5 @@
 import datetime
+import threading
 
 import telebot
 
@@ -6,7 +7,7 @@ import config
 from db import *
 
 bot = telebot.TeleBot(config.API_TOKEN)
-
+CHANNEL_NAME = "@pahota_xi"
 # Declare global variables
 date = None
 time = None
@@ -15,6 +16,29 @@ acreage = None
 phone_number = None
 
 
+def send_upcoming_order_notification(stop_event):
+    while not stop_event.is_set():
+        now = datetime.datetime.now()
+        time_to_check = now + datetime.timedelta(minutes=34)
+        orders = get_orders_by_date_and_time(time_to_check.date().strftime('%d.%m.%Y'), time_to_check.strftime('%H:%M'))
+
+        for order in orders:
+            order_id, date, order_time, address, acreage, phone_number = order
+            notification_text = f"Следующий заказ в {order_time}, по адресу {address} и номер телефона {phone_number}."
+            bot.send_message(CHANNEL_NAME, notification_text)
+
+        stop_event.wait(60)  # Проверяем заказы каждую минуту
+
+
+# Запускаем отправку уведомлений в фоновом потоке
+stop_event = threading.Event()
+notification_thread = threading.Thread(target=send_upcoming_order_notification, args=(stop_event,))
+notification_thread.start()
+
+
+# Выполните следующий код, чтобы остановить поток
+# stop_event.set()
+# notification_thread.join()
 @bot.callback_query_handler(func=lambda call: call.data.startswith("completed_"))
 def order_completed(call):
     order_id = int(call.data.replace("completed_", ""))
@@ -191,11 +215,11 @@ def generate_time_buttons(selected_date):
 
     # Группировка кнопок времени по 4 в каждой строке
     for i in range(0, len(available_time_slots), 4):
-        time_buttons = [telebot.types.InlineKeyboardButton(time_slot, callback_data=f"time_{time_slot}") for time_slot in available_time_slots[i:i + 4]]
+        time_buttons = [telebot.types.InlineKeyboardButton(time_slot, callback_data=f"time_{time_slot}") for time_slot
+                        in available_time_slots[i:i + 4]]
         markup.row(*time_buttons)
 
     return markup
-
 
 
 def generate_acreage_buttons():
@@ -203,7 +227,8 @@ def generate_acreage_buttons():
 
     # Группировка кнопок количества соток по 4 в каждой строке
     for i in range(2, 16, 4):
-        acreage_buttons = [telebot.types.InlineKeyboardButton(str(j), callback_data=f"acreage_{j}") for j in range(i, i + 4)]
+        acreage_buttons = [telebot.types.InlineKeyboardButton(str(j), callback_data=f"acreage_{j}") for j in
+                           range(i, i + 4)]
         markup.row(*acreage_buttons)
 
     return markup

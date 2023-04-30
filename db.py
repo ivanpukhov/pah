@@ -64,4 +64,13 @@ def delete_order(order_id):
     conn.close()
 
 
+def get_orders_by_date_and_time(date, time):
+    conn = sqlite3.connect("orders.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM orders WHERE date = ? AND time = ?", (date, time))
+    orders = cursor.fetchall()
+    conn.close()
+    return orders
+
+
 create_orders_table()
