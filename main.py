@@ -3,7 +3,7 @@ import datetime
 import telebot
 
 import config
-from db import add_order, get_order_dates_list, get_order_dates
+from db import *
 
 bot = telebot.TeleBot(config.API_TOKEN)
 
@@ -13,6 +13,17 @@ time = None
 address = None
 acreage = None
 phone_number = None
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("completed_"))
+def order_completed(call):
+    order_id = int(call.data.replace("completed_", ""))
+    try:
+        delete_order(order_id)
+        bot.answer_callback_query(call.id, "Заказ выполнен и удален из базы данных")
+        bot.edit_message_text("Заказ выполнен и удален из базы данных", call.message.chat.id, call.message.message_id)
+    except Exception as e:
+        bot.answer_callback_query(call.id, "Ошибка. Пожалуйста, попробуйте еще раз.")
 
 
 def generate_start_buttons():
@@ -136,10 +147,12 @@ def handle_order_date(call):
 
     orders = get_order_dates(selected_date)
     orders.sort(key=lambda x: x[2])  # Сортировка заказов по времени
-    response = f"Заказы на {selected_date}:\n\n"
     for order in orders:
-        response += f"ID: {order[0]}, Время: {order[2]}, Адрес: {order[3]}, Количество соток: {order[4]}, Номер телефона: <a href='tel:{order[5]}'>{order[5]}</a>\n"
-    bot.send_message(call.message.chat.id, response, parse_mode='HTML')
+        response = f"Заказ на {selected_date}:\n\n"
+        response += f" Время: {order[2]}, Адрес: {order[3]}, Количество соток: {order[4]}, Номер телефона: <a href='tel:{order[5]}'>{order[5]}</a>\n"
+        markup = telebot.types.InlineKeyboardMarkup()
+        markup.row(telebot.types.InlineKeyboardButton("Заказ выполнен", callback_data=f"completed_{order[0]}"))
+        bot.send_message(call.message.chat.id, response, reply_markup=markup, parse_mode='HTML')
 
 
 def get_address(message):
@@ -175,15 +188,24 @@ def generate_calendar():
 def generate_time_buttons(selected_date):
     markup = telebot.types.InlineKeyboardMarkup()
     available_time_slots = get_available_time_slots(selected_date)
-    for time_slot in available_time_slots:
-        markup.row(telebot.types.InlineKeyboardButton(time_slot, callback_data=f"time_{time_slot}"))
+
+    # Группировка кнопок времени по 4 в каждой строке
+    for i in range(0, len(available_time_slots), 4):
+        time_buttons = [telebot.types.InlineKeyboardButton(time_slot, callback_data=f"time_{time_slot}") for time_slot in available_time_slots[i:i + 4]]
+        markup.row(*time_buttons)
+
     return markup
+
 
 
 def generate_acreage_buttons():
     markup = telebot.types.InlineKeyboardMarkup()
-    for i in range(2, 16):
-        markup.row(telebot.types.InlineKeyboardButton(str(i), callback_data=f"acreage_{i}"))
+
+    # Группировка кнопок количества соток по 4 в каждой строке
+    for i in range(2, 16, 4):
+        acreage_buttons = [telebot.types.InlineKeyboardButton(str(j), callback_data=f"acreage_{j}") for j in range(i, i + 4)]
+        markup.row(*acreage_buttons)
+
     return markup
 
 

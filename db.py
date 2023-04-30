@@ -56,4 +56,12 @@ def get_order_dates_list():
     return dates
 
 
+def delete_order(order_id):
+    conn = sqlite3.connect("orders.db")
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM orders WHERE id=?", (order_id,))
+    conn.commit()
+    conn.close()
+
+
 create_orders_table()
