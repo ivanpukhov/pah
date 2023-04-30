@@ -5,7 +5,6 @@ import telebot
 import config
 from db import add_order, get_order_dates_list, get_order_dates
 
-
 bot = telebot.TeleBot(config.API_TOKEN)
 
 # Declare global variables
@@ -16,23 +15,79 @@ acreage = None
 phone_number = None
 
 
+def generate_start_buttons():
+    markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    new_order_button = telebot.types.KeyboardButton("Новый заказ")
+    all_orders_button = telebot.types.KeyboardButton("Все заказы")
+    markup.add(new_order_button, all_orders_button)
+    return markup
+
+
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.reply_to(message, "Привет! Пожалуйста, выберите дату заказа.", reply_markup=generate_calendar())
+    bot.send_message(message.chat.id, "Привет! Выберите действие:", reply_markup=generate_start_buttons())
 
 
-@bot.message_handler(commands=['all'])
+@bot.message_handler(func=lambda message: message.text == "Новый заказ")
+def new_order(message):
+    bot.send_message(message.chat.id, "Пожалуйста, выберите дату заказа.", reply_markup=generate_calendar())
+
+
+def format_date_button(date_tuple):
+    date_text = date_tuple[0]
+    date_obj = datetime.datetime.strptime(date_text, "%d.%m.%Y")
+    date_formatted = date_obj.strftime("%d %B - %A")
+    date_localized = localize_day_and_month(date_formatted, date_obj)
+    orders_count = date_tuple[1]
+    return f"{date_localized} ({orders_count} заказов)"
+
+
+def localize_day_and_month(date_formatted, date_obj):
+    months = {
+        "January": "января",
+        "February": "февраля",
+        "March": "марта",
+        "April": "апреля",
+        "May": "мая",
+        "June": "июня",
+        "July": "июля",
+        "August": "августа",
+        "September": "сентября",
+        "October": "октября",
+        "November": "ноября",
+        "December": "декабря"
+    }
+    days = {
+        "Monday": "понедельник",
+        "Tuesday": "вторник",
+        "Wednesday": "среда",
+        "Thursday": "четверг",
+        "Friday": "пятница",
+        "Saturday": "суббота",
+        "Sunday": "воскресенье"
+    }
+
+    for en_month, ru_month in months.items():
+        date_formatted = date_formatted.replace(en_month, ru_month)
+
+    for en_day, ru_day in days.items():
+        date_formatted = date_formatted.replace(en_day, ru_day)
+
+    return date_formatted
+
+
+@bot.message_handler(func=lambda message: message.text == "Все заказы")
 def all_orders(message):
     order_dates = get_order_dates_list()
     if order_dates:
         markup = telebot.types.InlineKeyboardMarkup()
         for date_tuple in order_dates:
-            date_text = date_tuple[0]
-            markup.row(telebot.types.InlineKeyboardButton(date_text, callback_data=f"order_date_{date_text}"))
+            date_button_text = format_date_button(date_tuple)
+            markup.row(
+                telebot.types.InlineKeyboardButton(date_button_text, callback_data=f"order_date_{date_tuple[0]}"))
         bot.send_message(message.chat.id, "Выберите дату, чтобы увидеть заказы:", reply_markup=markup)
     else:
         bot.send_message(message.chat.id, "Заказов пока нет.")
-
 
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -148,4 +203,3 @@ def get_available_time_slots(selected_date):
 
 
 bot.polling()
-

@@ -24,6 +24,7 @@ def add_order(date, time, address, acreage, phone_number):
     conn.commit()
     conn.close()
 
+
 #
 # def get_all_orders():
 #     conn = sqlite3.connect("orders.db")
@@ -46,9 +47,12 @@ def get_order_dates(date):
 def get_order_dates_list():
     conn = sqlite3.connect("orders.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT date FROM orders ORDER BY date ASC")
+    cursor.execute("SELECT date, COUNT(*) FROM orders GROUP BY date ORDER BY date ASC")
     dates = cursor.fetchall()
     conn.close()
+
+    dates.sort(key=lambda x: x[0])
+
     return dates
 
 
